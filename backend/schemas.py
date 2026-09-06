@@ -96,6 +96,24 @@ class SearchData(BaseModel):
     pois: list[PoiItem]
 
 
+class FinalizeRequest(BaseModel):
+    search_id: str = Field(examples=["sch_20260906_171500_abc123"])
+
+    @field_validator("search_id")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("blank")
+        return cleaned
+
+
+class FinalizeData(BaseModel):
+    reply_text: str = Field(examples=["为你们找到一家合适的咖啡店，推荐瑞幸咖啡(物产国际广场店)，地址在凯旋路445号，距两人中间位置约253米，欢迎去打卡！"])
+    audio_url: str | None = Field(default=None, examples=["http://localhost:8003/audio/tts_20260906_174307_abc123"])
+    warning: str | None = Field(default=None, examples=["语音合成暂时不可用，仅提供文字推荐"])
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str

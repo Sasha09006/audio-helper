@@ -40,7 +40,7 @@ function makeFilename(mime) {
   return `recording-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}.${extensionForMimeType(mime)}`;
 }
 
-export default function Recorder() {
+export default function Recorder({ onRecordingStart, onRecorded }) {
   const [phase, setPhase] = useState("idle");
   const [error, setError] = useState("");
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -117,18 +117,21 @@ export default function Recorder() {
 
     revokeObjectUrl();
     const mime = blob.type || mimeTypeRef.current;
+    const filename = makeFilename(mime);
     const objectUrl = URL.createObjectURL(blob);
     objectUrlRef.current = objectUrl;
     setResult({
       blob,
       objectUrl,
-      filename: makeFilename(mime),
+      filename,
       mimeType: mime,
       durationSec,
       sizeBytes: blob.size,
     });
     setError("");
     setPhase("ready");
+    // 通知父组件开始处理流程
+    onRecorded?.(blob, filename);
   }
 
   function finishRecording({ discarded }) {
@@ -299,6 +302,8 @@ export default function Recorder() {
     sessionRef.current += 1;
     revokeObjectUrl();
     setResult(null);
+    // 通知父组件：新录音开始，清空上一轮结果并取消旧请求
+    onRecordingStart?.();
     bindWindowListeners();
     startRecording();
   }
@@ -377,7 +382,6 @@ export default function Recorder() {
           <a className="download-link" href={result.objectUrl} download={result.filename}>
             下载录音文件
           </a>
-          <p className="hint">下载仅用于后续独立测试上传接口，本轮不会上传。</p>
         </div>
       )}
     </section>
