@@ -1,16 +1,33 @@
+import logging
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from api.health import router as health_router
+from api.upload import router as upload_router
 from config import settings
+from errors import AppError
+from services.audio_store import purge_expired_audio
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    purge_expired_audio()
+    yield
+
 
 app = FastAPI(
     title="语音约碰面地点",
     version="0.1.0",
-    description="第一版骨架：仅提供健康检查。",
+    description="当前提供健康检查与录音上传。",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -22,6 +39,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(upload_router)
 
 
 def generate_request_id() -> str:
@@ -30,7 +48,55 @@ def generate_request_id() -> str:
     return f"req_{stamp}_{suffix}"
 
 
+def _request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", None) or generate_request_id()
+
+
 @app.middleware("http")
 async def attach_request_id(request: Request, call_next):
     request.state.request_id = generate_request_id()
     return await call_next(request)
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    logger.warning("stage=%s code=%s", exc.stage, exc.code)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "request_id": _request_id(request),
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "stage": exc.stage,
+            },
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    stage = "upload" if request.url.path.rstrip("/").endswith("upload") else "request"
+    missing_file = any(_is_file_field(error) for error in exc.errors())
+    code = "MISSING_FILE" if missing_file and stage == "upload" else "VALIDATION_ERROR"
+    message = "未检测到音频文件" if code == "MISSING_FILE" else "请求缺字段或字段类型错误"
+    logger.warning("stage=%s code=%s", stage, code)
+    return JSONResponse(
+        status_code=422,
+        content={
+            "request_id": _request_id(request),
+            "error": {
+                "code": code,
+                "message": message,
+                "stage": stage,
+            },
+        },
+    )
+
+
+def _is_file_field(error: dict) -> bool:
+    loc = error.get("loc") or ()
+    return "file" in loc

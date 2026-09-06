@@ -14,7 +14,7 @@ body {
 
 .page {
   max-width: 40rem;
-  margin: 12vh auto;
+  margin: 8vh auto;
   padding: 2rem;
   background: #fff;
   border-radius: 1rem;
@@ -36,7 +36,96 @@ p {
 }
 
 .meta {
-  margin-top: 1.5rem;
+  margin-top: 0.75rem;
   font-size: 0.9rem;
   color: #4b5563;
+}
+
+.city-select {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1.5rem;
+  font-weight: 600;
+}
+
+.city-select select {
+  min-width: 8rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #fff;
+  font: inherit;
+}
+
+.recorder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.status {
+  min-height: 1.5rem;
+  margin: 0;
+  color: #4b5563;
+}
+
+.record-button {
+  width: 8.5rem;
+  height: 8.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: #b42318;
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-select: none;
+}
+
+.record-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.record-button.is-recording {
+  background: #7a271a;
+  box-shadow: 0 0 0 8px rgba(180, 35, 24, 0.18);
+}
+
+.cancel-button {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.error {
+  margin: 0;
+  color: #b42318;
+  text-align: center;
+}
+
+.recording-result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recording-result audio {
+  width: 100%;
+}
+
+.download-link {
+  color: #155eef;
+  font-weight: 600;
 }

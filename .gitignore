@@ -23,6 +23,9 @@ frontend/.vite/
 # Runtime storage (keep directory)
 backend/storage/*
 !backend/storage/.gitkeep
+!backend/storage/uploads
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
 
 # OS / editor
 .DS_Store
