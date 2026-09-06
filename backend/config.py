@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     bailian_asr_endpoint: str = (
         "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     )
+    bailian_asr_encoded_max_bytes: int = 10 * 1024 * 1024
     bailian_tts_endpoint: str = (
         "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     )
@@ -48,7 +49,10 @@ class Settings(BaseSettings):
     extended_search_radius_m: int = 5000
 
     timeout_asr: int = 20
+    timeout_asr_vendor: int = 15
     timeout_extract: int = 15
+    timeout_extract_vendor: int = 12
+    deepseek_max_tokens: int = 1024
     timeout_search: int = 30
     timeout_finalize: int = 40
 
