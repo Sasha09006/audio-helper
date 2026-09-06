@@ -26,6 +26,12 @@ backend/storage/*
 !backend/storage/uploads
 backend/storage/uploads/*
 !backend/storage/uploads/.gitkeep
+!backend/storage/searches
+backend/storage/searches/*
+!backend/storage/searches/.gitkeep
+!backend/storage/audio_tts
+backend/storage/audio_tts/*
+!backend/storage/audio_tts/.gitkeep
 
 # OS / editor
 .DS_Store

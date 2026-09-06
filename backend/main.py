@@ -8,11 +8,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.audio import router as audio_router
+from api.asr import router as asr_router
+from api.extract import router as extract_router
+from api.finalize import router as finalize_router
 from api.health import router as health_router
+from api.search import router as search_router
 from api.upload import router as upload_router
 from config import settings
 from errors import AppError
 from services.audio_store import purge_expired_audio
+from services.search_store import purge_expired_searches
+from services.tts_store import purge_expired_tts_audio
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +27,15 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     purge_expired_audio()
+    purge_expired_searches()
+    purge_expired_tts_audio()
     yield
 
 
 app = FastAPI(
     title="语音约碰面地点",
     version="0.1.0",
-    description="当前提供健康检查与录音上传。",
+    description="当前提供健康检查、录音上传、语音识别、信息提取、中点搜店、推荐语生成与音频播放。",
     lifespan=lifespan,
 )
 
@@ -40,6 +49,11 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(upload_router)
+app.include_router(asr_router)
+app.include_router(extract_router)
+app.include_router(search_router)
+app.include_router(finalize_router)
+app.include_router(audio_router)
 
 
 def generate_request_id() -> str:
@@ -79,7 +93,7 @@ async def validation_error_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
-    stage = "upload" if request.url.path.rstrip("/").endswith("upload") else "request"
+    stage = _stage_from_path(request.url.path)
     missing_file = any(_is_file_field(error) for error in exc.errors())
     code = "MISSING_FILE" if missing_file and stage == "upload" else "VALIDATION_ERROR"
     message = "未检测到音频文件" if code == "MISSING_FILE" else "请求缺字段或字段类型错误"
@@ -95,6 +109,13 @@ async def validation_error_handler(
             },
         },
     )
+
+
+def _stage_from_path(path: str) -> str:
+    name = path.rstrip("/").rsplit("/", 1)[-1]
+    if name in {"upload", "asr", "extract", "search", "finalize", "health"}:
+        return name
+    return "request"
 
 
 def _is_file_field(error: dict) -> bool:
