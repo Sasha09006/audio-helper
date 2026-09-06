@@ -63,6 +63,39 @@ class ExtractData(BaseModel):
     category: str = Field(examples=["咖啡店"])
 
 
+class SearchRequest(BaseModel):
+    city_a: str = Field(examples=["杭州"])
+    address_a: str = Field(examples=["杭州东站"])
+    city_b: str = Field(examples=["杭州"])
+    address_b: str = Field(examples=["西湖龙翔桥地铁站"])
+    category: str = Field(examples=["咖啡店"])
+
+    @field_validator("city_a", "address_a", "city_b", "address_b", "category")
+    @classmethod
+    def not_blank(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("blank")
+        return cleaned
+
+
+class Midpoint(BaseModel):
+    longitude: float = Field(examples=[120.185678])
+    latitude: float = Field(examples=[30.258912])
+
+
+class PoiItem(BaseModel):
+    name: str = Field(examples=["星巴克（庆春路店）"])
+    address: str = Field(examples=["杭州市上城区庆春路123号"])
+    distance_to_midpoint_m: int = Field(examples=[450])
+
+
+class SearchData(BaseModel):
+    search_id: str = Field(examples=["sch_20260906_171500_abc123"])
+    midpoint: Midpoint
+    pois: list[PoiItem]
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str

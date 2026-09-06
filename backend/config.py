@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     timeout_extract_vendor: int = 12
     deepseek_max_tokens: int = 1024
     timeout_search: int = 30
+    timeout_search_geocode: int = 8
+    timeout_search_poi: int = 10
+    geocode_duplicate_max_m: int = 15
     timeout_finalize: int = 40
 
     temp_data_ttl_hours: int = 24

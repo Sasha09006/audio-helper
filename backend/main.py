@@ -11,10 +11,12 @@ from fastapi.responses import JSONResponse
 from api.asr import router as asr_router
 from api.extract import router as extract_router
 from api.health import router as health_router
+from api.search import router as search_router
 from api.upload import router as upload_router
 from config import settings
 from errors import AppError
 from services.audio_store import purge_expired_audio
+from services.search_store import purge_expired_searches
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +24,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     purge_expired_audio()
+    purge_expired_searches()
     yield
 
 
 app = FastAPI(
     title="语音约碰面地点",
     version="0.1.0",
-    description="当前提供健康检查、录音上传、语音识别与信息提取。",
+    description="当前提供健康检查、录音上传、语音识别、信息提取与中点搜店。",
     lifespan=lifespan,
 )
 
@@ -44,6 +47,7 @@ app.include_router(health_router)
 app.include_router(upload_router)
 app.include_router(asr_router)
 app.include_router(extract_router)
+app.include_router(search_router)
 
 
 def generate_request_id() -> str:

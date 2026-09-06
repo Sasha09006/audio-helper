@@ -2,7 +2,7 @@
 
 按住网页录音按钮，说出两人所在地点和想找的店，系统完成识别、提取、搜店和语音播报。
 
-当前进度：后端 `POST /upload`、`POST /asr`、`POST /extract` 与前端本地录音已实现，前端尚未调用业务接口。
+当前进度：后端 `POST /upload`、`POST /asr`、`POST /extract`、`POST /search` 与前端本地录音已实现，前端尚未调用业务接口。
 
 本地环境：Python 3.11，Node.js 22.12 及以上的 22.x。后端端口 8003，前端端口 5175。
 
@@ -533,6 +533,150 @@ pytest tests/test_extract.py -v
 超时返回 504，`code` 为 `EXTRACT_TIMEOUT`。
 
 接口总预算 15 秒，其中 DeepSeek 调用 12 秒，解析与校验约 3 秒。调用使用官方 Chat Completions：`response_format.type=json_object`，`thinking.type=disabled`，模型 `deepseek-v4-flash`。
+
+## 验证 POST /search
+
+先重启后端（新路由不会热更新）。**不要**再执行 `cp .env.example .env`：
+
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn main:app --host 127.0.0.1 --port 8003
+```
+
+本轮不要从页面调用 `/search`。查询结果保存在 `backend/storage/searches/{search_id}.json`，含 `created_at`，有效 24 小时，供后续 `/finalize` 使用。
+
+### 坐标、中点与「距离中点」
+
+高德 `location` 是 **经度在前、纬度在后** 的字符串，例如 `120.2125,30.2909`。接口把前一个数放进 `midpoint.longitude`，后一个放进 `midpoint.latitude`。
+
+中点是双方坐标分别求算术平均，不是球面中点，也不表示出行时间相同：
+
+```
+midpoint.longitude = (location_a.longitude + location_b.longitude) / 2
+midpoint.latitude  = (location_a.latitude  + location_b.latitude)  / 2
+```
+
+核对方法：打开本次保存的 JSON，确认上面两个等式成立（允许浮点末位误差）。
+
+`pois[].distance_to_midpoint_m` 只表示店铺到这个地理中点的直线距离（米）。优先用高德返回的有效 `distance`；缺失时用候选坐标与中点做 Haversine 计算，**不会缺省填 0**。它不是步行/驾车时间，也不能用来宣称两人一样近或一样久。
+
+定位校验：城市一致、匹配级别足够具体（兴趣点/门牌号/地铁站等；市、区县、省视为含糊）、名称与地址能对上。多个可区分候选会返回 `AMBIGUOUS_LOCATION`。即使两候选相距不足 300 米，只要名称或地址能分开，也不合并成同一地点。坐标几乎重合（约 15 米内）且地址高度相似，才视为同一标注的重复点。比较会看全部剩余候选，不只看前两条。
+
+接口总预算 30 秒：双方地理编码并行各 8 秒，首次周边搜索 10 秒（2000 米），无有效结果再扩大到 5000 米再搜 10 秒。
+
+### 模拟故障（无密钥、无调用费用）
+
+我没有执行这些命令。由你在 `backend` 目录运行：
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest tests/test_search.py -v
+```
+
+覆盖：缺字段 422、Mock 成功 200 并写入 `search_id`/`created_at`、300 米内不同候选不合并、不只比较前两条、级别过粗定位失败、缺距离用 Haversine 且不为 0、后端自行按距离排序并最多 3 家、2000 米为空则扩到 5000 米、两侧扩大后仍空为 `NO_RESULTS`、超时 504、未填密钥或供应商异常 502。Mock 通过不能证明真实高德已跑通。
+
+### 真实搜店（需要 AMAP_API_KEY，会产生调用次数）
+
+1. 在 `backend/.env` 填写高德 **Web 服务** Key，保存后重启 uvicorn。
+2. 打开 http://localhost:8003/docs ，找到 `POST /search` → Try it out。Examples 可直接选。
+
+**1. 正常搜店（200）**
+
+```json
+{
+  "city_a": "杭州",
+  "address_a": "杭州东站",
+  "city_b": "杭州",
+  "address_b": "西湖龙翔桥地铁站",
+  "category": "咖啡店"
+}
+```
+
+预期：`data.search_id` 形如 `sch_20260906_171500_abc123`；`data.midpoint` 有经度、纬度；`data.pois` 1—3 项，按 `distance_to_midpoint_m` 升序。用保存文件核对方坐标平均值与中点。若「杭州东站」被判定位不明确，说明高德给出了多个可区分候选，可改成更具体的点（例如东广场）再试。
+
+```json
+{
+  "request_id": "req_20260906_171500_abc123",
+  "data": {
+    "search_id": "sch_20260906_171500_def456",
+    "midpoint": {
+      "longitude": 120.18675,
+      "latitude": 30.27495
+    },
+    "pois": [
+      {
+        "name": "实际店名随高德变化",
+        "address": "实际地址随高德变化",
+        "distance_to_midpoint_m": 450
+      }
+    ]
+  }
+}
+```
+
+店名、地址、距离以高德当天结果为准，不是固定示例。
+
+**2. 定位不明确（422）**
+
+```json
+{
+  "city_a": "杭州",
+  "address_a": "市民中心",
+  "city_b": "杭州",
+  "address_b": "西湖龙翔桥地铁站",
+  "category": "咖啡店"
+}
+```
+
+预期：杭州有多处市民中心时返回
+
+```json
+{
+  "request_id": "req_20260906_171501_abc123",
+  "error": {
+    "code": "AMBIGUOUS_LOCATION",
+    "message": "\"市民中心\"有多个匹配结果，请补充具体地点后重新录音",
+    "stage": "search"
+  }
+}
+```
+
+若高德只剩一个可定位结果，则可能 200；以是否返回多个可区分候选为准。
+
+**3. 无候选（422）**
+
+先保证两个地址能定位，再用不存在的类别：
+
+```json
+{
+  "city_a": "杭州",
+  "address_a": "杭州东站",
+  "city_b": "杭州",
+  "address_b": "西湖龙翔桥地铁站",
+  "category": "火星补给站"
+}
+```
+
+预期：2000 米与 5000 米都没有有效店铺时
+
+```json
+{
+  "request_id": "req_20260906_171502_abc123",
+  "error": {
+    "code": "NO_RESULTS",
+    "message": "中点附近5公里内未找到火星补给站，请调整需求后重试",
+    "stage": "search"
+  }
+}
+```
+
+**定位失败（422）**：把地址改成明显编造的路名，例如 `杭州东站123456号不存在的路`。`code` 为 `GEOCODE_FAILED`。
+
+**缺字段（422，无费用）**：请求体 `{}`。`code` 为 `VALIDATION_ERROR`。
+
+**模拟服务异常（502 / 504）**：用上面的 pytest（Fake 超时、错误状态、空密钥）。真实环境未填或填错 `AMAP_API_KEY` 时，接口不发有效请求或高德拒绝，返回 `AMAP_SERVICE_ERROR`；超时返回 `SEARCH_TIMEOUT`。不要为了制造 504 去反复打真实接口。
 
 ## 测试说明
 
